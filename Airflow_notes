@@ -1,0 +1,265 @@
+1.) Apache airflow is an open source platform to programmatically author, schedule and monitor workflows.
+2.) Airflow is dynammic ,scalable, UI (monitor), extensibility (can great your own plugin).
+3.) Core Components of airflow :- Webserver (Flask server with Gunicorn serving the UI).
+                                  scheduler (Daemon in charge of scheduling workflows).
+                                  Metastore (Database where metadata of pipelines and Tasks are stored).
+                                  Exector (Class defining how your tasks should be executed).
+                                  worker (Process/sub process executing your task).
+
+
+  Dag ->  Dag in airflow is represtation of pipeline as graph.
+4.) Operator :- Operator is  tasks in our Dag. There are 3 types of operators -> Actions operators, Transfer Operators (source to destination), Sensor operators.
+5.) Task instance :- When a operator run in a dag is called task instance.
+6.) Single node :- a) Webserver ---( fetch data from metastore like DAG info , User info , Tasks instances info )--> Metastore.
+                                                                                                          |
+                                                                                                          |->scheduler( It communicate with metastore in order to get info about launch the task ).
+                                                                                                          |_>executor (executor have a internal queue to maintain the order of tasks) ( It communicate with metastore in order to update the tasks that have been completed ).
+7.) Multi node :- Node 1 ----> Webserver, scheduler,  executor.
+                  Node 2 ----> Metastore, Queue(redis,rabbit MQ).
+
+                  Worker Node 1 ----> Airflow Worker
+                  Worker Node 2 ----> Airflow Worker
+8.) How it works 
+                                                                        (add dag.py) file
+                              Webserver <------------------(parses)----> Floder Dags <-----------(parses)-------------> scheduler
+                                                                                                                            |
+                                                                                                                            |
+                                                                                                                            |
+                                                                                                    ________________________|
+                                                                                                    |
+                                                                                            Metastore( If dag is ready to schedule than ) a Dag Run object( it is instance of our dag ready to run ) is create. status = Running.
+                                                                                                     ( If there is a tasks ready run in a dag then a taskinstance is created. status = schedule.
+                                                                                                     |
+                                                                                                     |
+                                                                                                  executor( scheduler will schedule task as scheduled in metastore.)
+                                                                                                          ( Then the task status will be updated as running.)
+                                                                                                          ( After complition task status will be updated as completed by the scheduler after check for other task for scheduling).
+
+9.) Command used in airflow is :- airflow db init ---> to intialized metastore.
+                                  airflow db upgrade ----> it upgrade the schema.
+                                  airflow scheduler
+                                  airflow webserver
+                                  airflow celery worker -----> put this command on worker machine.
+                                  airflow list dags -----> for listing dags.
+                                  airflow dags trigger <dagid> -e <exection date> ---> for triggering your dags from CLI.
+                                  airflow dags list-run -d <dag id> ---> to see all the run repeat a dag. 
+                                  airflow dag backfill -s <start date> -e <enddate> --reset-dagrun(to retrigger all previous run dags).
+                                  airflow task list <dag id> ----> to list all the task in dag.
+                                  airflow task test <dag id > < task id > <exec date> ----> it test if your task work without checking dependency and without storing data into metastore.
+
+10.) Docker Compose is use when you have to run multiple container in orcheatration way.These container run in same network.
+11.) What is a Dag ? ---> A Dag is a datapipeline where node are task and edges are dependency.
+                          (task1)-------(dependency)------->(task2)
+12.) Operator == task 
+    eg :- 
+
+from airflow import DAG
+from datetime import datetime,timedelta
+from airflow.providers.http.sensors.http import HttpSensor
+
+
+default_args= {
+    "owner" : "airflow",
+    "retries" : 1,
+    "retry_delay" : timedelta(minutes=5)
+}
+
+with DAG(
+    dag_id="FOREX_DAG",
+    start_date=datetime(2024,1,1,),
+    default_args=default_args,
+    schedule_interval="@daily"
+)as dag :
+
+    is_forex_rates_aviable=HttpSensor(
+        task_id='is_forex_rates_aviable',
+        http_connection_id='forex_api', ## it's a connection id where you want to check with correspond to url >> in admin >> connections 
+        endpoint="marclamerti/f45f872d3eaa015a4a1af4b39b",
+        responce_check=lambda :"rates" in respone.txt,
+        poke_interval=5,
+        timeout=20
+    )
+
+13.) data processing using spark submit operator
+     from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
+
+     forex_processing =SparkSubmitOperator(
+     task_id="forex_processing",
+     application="<call spark application file>
+     conn_id="<spark connection>"
+     verbose= False
+
+)
+when you create spark connection in airflow mension conn_id,Host,Port,conn Type
+
+14.) Configuring email for airflow using smpt.
+     Smpt => The Simple Mail Transfer Protocol (SMTP) is an application used by mail servers to send, 
+     receive, and relay outgoing email between senders and receivers.
+
+     from airflow.operators.email import EmailOperator
+
+     send_email_notification = EmailOperator(
+     task_id ="send_email_notification",
+     to ="<to whom you have to send email>"
+     subject = "<email subject>"
+     html_content= "<content of email>"
+
+15.) Defining task dependencies :-
+      
+      a.task1.set_downstream(task2)
+      b.task1>> task2
+16.) Dag start when execution date matchs with execution date + schedule interval then only actually first dag run will be display in web UI.
+
+17.) Catchup: Catchup refers to the behavior of Airflow to backfill or rerun tasks for the time periods in the past when DAGs (Directed Acyclic Graphs) 
+     were not running. By default, Airflow does not backfill or rerun tasks for periods when DAGs were paused or not scheduled to run.
+     However, if catchup is enabled in the DAG definition,Airflow will execute tasks for these past periods when the DAG is unpaused or scheduled to run again.
+
+     Backfill: Backfill, on the other hand, is the process of running or backfilling tasks for a specified range of time in the past.
+     This is typically used when a new DAG is created or when changes are made to existing DAGs.
+     Airflow provides a CLI command airflow backfill to trigger backfilling of tasks for a specified time range.
+
+     Catchup Example:
+      In this example, catchup is set to True. Suppose the DAG was paused from February 5th to February 12th, 2024.
+      When you unpause the DAG on February 12th,Airflow will catch up and execute the task for each day from February 5th to February 12th, generating the missing reports.
+
+     Backfill Example:
+      Now, let's say you make some changes to the report generation process on February 15th, and you want to apply these changes retroactively to Feb ruary 10th.
+      You can use the airflow backfill command to execute the generate_report task for the specified date range.
+
+    command :- airflow backfill daily_report -s 2024-02-10 -e 2024-02-15
+
+18.) Time module in python :- 1. time( Begins recording time from the epoch that begins at 00:00:00 1st jan 1970
+                                some example of functions in time module:- time(), ctime(), sleep(), localtime(),gmtime(),mktime(),asctime()
+                              2. datetime( naive,aware)
+19.) dependencies :-  Depend_on_past ----> When you set depend_on_downstream=True for a task, it means that the task will wait for downstream tasks to complete before it starts.
+     This is useful when you have tasks that depend on the outputs of other tasks in the workflow.
+                      wait_for_downstream -----> wait_for_downstream: when set to true, an instance of task X will wait for tasks immediately downstream of the previous instance of task X to finish successfully before it runs.
+                                                 This is useful if the different instances of a task X alter the same asset, and this asset is used by tasks downstream of task X.
+                                                 Note that depends_on_past is forced to True wherever wait_for_downstream is used. Also note that only tasks immediately downstream of the previous task instance are waited for;
+                                                 the statuses of any tasks further downstream are ignored.
+
+20.) Dag bag ------> A dagbag is a collection of dags, parsed out of a folder tree and has high level configuration settings.
+Some possible setting are database to use as a backend and what executor to use to fire off tasks.
+This makes it easier to run distinct environments for say production and development, tests, or for
+different teams or security profiles. What would have been system level settings are now dagbag level 
+so that one system can run multiple, independent settings sets.
+
+21.) How webserver works :-                              webserver
+                                                             |
+                                                             |
+                                                             |
+                                                           Flask
+                                                             |
+                                                             |
+                                                          Gunicorn
+                                                             |
+                                                             |
+                                                        Master Process
+                                                        |   |   |    |
+                                                        |   |   |    |
+                                                     worker worker  worker
+                                                     (fork) (fork)  (fork)
+
+
+
+Gunicorn is a python http server.
+master process is a loop listener.
+worker is respomiable to prase dag in dag in dag folder ,handling request and giving respone.
+worker are main 2 type synchronous ans asynchronous.
+synchronous handle only one request at a time.
+worker_refresh_batch_size:- number worker to be refersh at a time.
+worker_refresh_interval :- interval btw worker to refresh.
+
+22.) How to handle DAG failure:- 
+      Dagrun_timeout:- Max time for which a dagrun should be active.It is affective schedule dag runs.
+                       This also depend on max active dag runs it is equal to number dag which can be run in parallel to backfill process.
+      on_failure_callback:- A function is called when a dag get failed.
+      on_success_callback:- A function is called when a dag get successed.
+      both function take context dictionary as input
+
+23.) How to handle failure at task level:-
+      email:-
+      email_on_failure:-
+      email_on_retry:-
+      retries:-
+      retries_delay:-
+      retry_exponential_backoff:- allow progress longer retries.
+      max_retry_delay:-
+      execution_timeout:-
+      on_failure_callback:-
+      on_success_callback:-
+      on_retry_callback:-
+24.)Testing:-
+                Five categories:-
+                * Dag Validation test:- It will check all dag in dag folder and validate for  typo, required dag args etc.
+                * DAG/pipeline definition test:- This test is subject to check a single dag only by checking total number of task, check dependencies btw the task etc.
+                * Unit test :- Check logic 
+                * Integration test:- Test if tasks work well with each other using a subset of production data.
+                                      * Check if tasks can exchange data.
+                                      * check the input of tasks.
+                * end to end pipeline test
+
+Create different environments:-
+                        1.) development:- Faked small data input.
+                                          verify:-
+                                          *Dag Validation.
+                                          *pipeline test.
+                                          *Unit test
+                        2.) Test :- Larger amount of real data.
+                                        verify:- 
+                                          * Integration Tests.
+                        3.) Acceptance :- Copy production datasets
+                                        verify:-
+                                          * end to end pipeline tests.
+                        4.) Production :- All production dataset.
+                                          used by end user.
+25.) Type of executor :-
+                        1. Sequential executor :- * Most basic executor.
+                                                  * only run one task at a time.
+                                                  * Only executor to use with sqlite.
+                                                  * default configuration.
+
+                                                  In airflow.cfg:-
+                                                  * executor= SequentialExector.
+                                                  * sql_alchemy_conn= sqlite......
+                        2. Local Executor: -      * Run multiple task in parallel.
+                                                  * Base on the python module : multiprocessing.
+                                                  * Spawn processess to execute tasks.
+                                                  * easy to set up.
+                                                  * Resource light.
+                                                  * Vertical Scaling.
+                                                  * Single point of failure.
+                        Concurrency and parallism parameters:-
+                              parallelism :- number of task can run simultaneously for all DagRuns.
+                              max_active_runs_per_dag=1 :- number dag can run simultaneously.
+                              dag_concurrency :- number of task can be run simultaneously per dag run.
+
+26.) Sql_alchemy_conn :- Connection for sql database is mension here.
+27.) Ad Hoc query :- To direct query 
+28.) Celery executor:-
+                        
+
+                        webserver-----------------------|------------------------>scheduler
+                                                        |
+                                                     Executor     
+                                                        |
+                                                        |
+                                                   message Queue(Rabbit MQ, Redis)--------------> Worker 1
+                                                        |                                 |
+                                                        |                                 |
+                                                    metastore                             |-----> Worker 2
+                                                                                          |
+                                                                                          |
+                                                                                          |-----> Worker 3
+worker_logs_server_port---> In airflog.cfg
+
+
+29.) For Scaling workers:- 
+            command>          docker compose -f docker-compose-celery.... up -d --scale worker=3.
+
+
+
+30.) In order queue the task to specific worker node do the following:-
+                                                                      * Configure in compose file :- Worker: -q worker_1,worker_2,worker_3,default.
+                                                                      * now configue same in task as queue=worker_1.....
+                                                                      * Configure same in flower UI per worker node.

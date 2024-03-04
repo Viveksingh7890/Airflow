@@ -185,7 +185,7 @@ worker_refresh_interval :- interval btw worker to refresh.
       retries_delay:-
       retry_exponential_backoff:- allow progress longer retries.
       max_retry_delay:-
-      execution_timeout:-
+      execution_timeout:- ***
       on_failure_callback:-
       on_success_callback:-
       on_retry_callback:-
@@ -263,3 +263,37 @@ worker_logs_server_port---> In airflog.cfg
                                                                       * Configure in compose file :- Worker: -q worker_1,worker_2,worker_3,default.
                                                                       * now configue same in task as queue=worker_1.....
                                                                       * Configure same in flower UI per worker node.
+                                                     
+31.) In order to schedule one tasks at a time or to limit number of concurrent task instances we use Pool by Configuring:- 
+                                                                      * Configure pools and number of slot in webserver UI.
+                                                                      * In task configue mension argument call pool= pool name mension in webserver ui.
+                                                                      * priotity_weightage to every task in orfer to give sequence.
+32.) master brain is called control plane running inside the master node it do jobs like
+     scheduling container, managing services, serving api request etc.
+                                    (master nodes)
+     It consist of compoent like :- cude api server ---> It is frontend for control plane handling api request.
+                                    cude scheduler ----> It decide where to run new pods.
+                                    cude controller ---> it is responsiable to manage Resources controller like deployments.
+                                    etcd --------------> it is database where metadata is kept.
+                                    (worker nodes)
+                                    Kublets -----------> Monitoring loads on pods.
+                                    kub proxy ---------> network btw pods etc
+
+    Kubernetes object :- Kubernetes object are yaml file defining Resources.
+    pods :- A pod is group of containers with shared storage and network containing how to run a container.
+    Replica set :- It maintain minium number of pods required in a cluster.
+    Deployment state :- All above Components are defined in deployment state.
+    services :- It is a gateway btw you and your pods.
+    persistance volume :- It is a volume a piece of storage in cluster.
+
+33.) Kubernetes Executor :- * Tasks run in Kubernetes pods implies i pod = 1 tasks.
+                           * pods run to complition means even if scheduler goes down pod run to complition.
+                           * scheduler subscribe to Kubernetes even stream api so that we scheduler fails it were to start.
+                           
+    Dag distribution in  Kubernetes :-  1.) By init container.
+                                        2.) By volume mapping.
+                                        3.) By building image od cicd pipeline develop.
+                                       
+34.) Kubernetes namespace can have different instance airflow running in same cluster like we can have dev, pre, prod in same cluster,
+     each component of airflow request kube api for Resource allocation.
+

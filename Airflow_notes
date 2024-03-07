@@ -164,7 +164,7 @@ so that one system can run multiple, independent settings sets.
 
 Gunicorn is a python http server.
 master process is a loop listener.
-worker is respomiable to prase dag in dag in dag folder ,handling request and giving respone.
+worker is responiable to prase dag in dag in dag folder ,handling request and giving respone.
 worker are main 2 type synchronous ans asynchronous.
 synchronous handle only one request at a time.
 worker_refresh_batch_size:- number worker to be refersh at a time.
@@ -233,6 +233,8 @@ Create different environments:-
                               parallelism :- number of task can run simultaneously for all DagRuns.
                               max_active_runs_per_dag=1 :- number dag can run simultaneously.
                               dag_concurrency :- number of task can be run simultaneously per dag run.
+                              worker_concurrency :- The concurrency that will be used when starting workers with the airflow celery worker command.
+                                                    This defines the number of task instances that a worker will take,so size up your workers based on the resources on your worker box and the nature of your tasks.
 
 26.) Sql_alchemy_conn :- Connection for sql database is mension here.
 27.) Ad Hoc query :- To direct query 
@@ -267,7 +269,7 @@ worker_logs_server_port---> In airflog.cfg
 31.) In order to schedule one tasks at a time or to limit number of concurrent task instances we use Pool by Configuring:- 
                                                                       * Configure pools and number of slot in webserver UI.
                                                                       * In task configue mension argument call pool= pool name mension in webserver ui.
-                                                                      * priotity_weightage to every task in orfer to give sequence.
+                                                                      * priorty_weightage to every task in orfer to give sequence.
 32.) master brain is called control plane running inside the master node it do jobs like
      scheduling container, managing services, serving api request etc.
                                     (master nodes)
@@ -288,7 +290,7 @@ worker_logs_server_port---> In airflog.cfg
 
 33.) Kubernetes Executor :- * Tasks run in Kubernetes pods implies i pod = 1 tasks.
                            * pods run to complition means even if scheduler goes down pod run to complition.
-                           * scheduler subscribe to Kubernetes even stream api so that we scheduler fails it were to start.
+                           * scheduler subscribe to Kubernetes even stream api so that if scheduler fails from were to start Execution.
                            
     Dag distribution in  Kubernetes :-  1.) By init container.
                                         2.) By volume mapping.
@@ -296,4 +298,21 @@ worker_logs_server_port---> In airflog.cfg
                                        
 34.) Kubernetes namespace can have different instance airflow running in same cluster like we can have dev, pre, prod in same cluster,
      each component of airflow request kube api for Resource allocation.
+35.) Trigger_rule :- Trigger rules define the conditions under which a task should run based on the states of its upstream tasks.
+                     The default trigger rule is all_success, meaning a task will run only if all its upstream tasks have succeeded.
+                     However, there are several other rules you can use:
 
+                               * all_failed: Runs if all upstream tasks have failed.
+                               * one_failed: Runs if at least one upstream task has failed.
+                               * all_done: Runs when all upstream tasks are done, regardless of their final states.
+
+36.) sub-dags:- This runs a sub dag. By convention, a sub dag’s dag_id should be prefixed by its parent and a dot. As in parent.child. Although SubDagOperator can occupy a pool/concurrency slot,
+                user can specify the mode=reschedule so that the slot will be released periodically to avoid potential deadlock.
+
+                * Here each subdag is consider as a task.
+                * execution date both dag and subdags should be same.
+                * Executor should be set be Sequential Because if worker_slot_for_default_queue and concurrency task is set to a particular
+                  limit. Then each sub dag take slots and there is no slot for sub task of sub dag to run.Which causes deadlock.
+37.)                   
+
+                  
